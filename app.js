@@ -11,11 +11,13 @@ const expenseRoutes = require('./routes/expenses');
 const app = express();
 
 // DB connect
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/expense_tracker';
+const MONGODB_URI = process.env.MONGODB_URI;
 mongoose.connect(MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
-}).then(()=>console.log('MongoDB connected')).catch(err=>{
+})
+.then(() => console.log('MongoDB connected'))
+.catch(err => {
   console.error('MongoDB connection error', err);
   process.exit(1);
 });
@@ -36,13 +38,13 @@ const sessionStore = MongoStore.create({
 });
 
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'keyboard cat',
+  secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   store: sessionStore,
   cookie: {
-    maxAge: 1000 * 60 * 60 * 24 * 7,
-    secure: process.env.NODE_ENV === 'production',
+    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+    secure: process.env.NODE_ENV === 'production', // only https
     httpOnly: true,
     sameSite: 'lax'
   }
