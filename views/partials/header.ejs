@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title><%= title || 'Expense Tracker' %></title>
+  <link rel="stylesheet" href="/public/css/style.css">
+</head>
+<body>
+  <header>
+    <h1><a href="/">Expense Tracker</a></h1>
+    <% if (user) { %>
+      <div class="nav">
+        <span>Welcome, <%= user.name %></span>
+        <form method="post" action="/logout" style="display:inline;">
+          <button type="submit">Logout</button>
+        </form>
+      </div>
+    <% } else { %>
+      <nav>
+        <a href="/login">Login</a> | <a href="/register">Register</a>
+      </nav>
+    <% } %>
+  </header>
+  <main>
+    <% if (error) { %>
+      <div class="flash flash-error"><%= error %></div>
+    <% } %>
+    <% if (success) { %>
+      <div class="flash flash-success"><%= success %></div>
+    <% } %>

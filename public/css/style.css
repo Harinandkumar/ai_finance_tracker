@@ -1,0 +1,11 @@
+body { font-family: Arial, sans-serif; max-width: 1000px; margin: 0 auto; padding: 10px; color:#222; }
+header { display:flex; justify-content:space-between; align-items:center; padding:10px 0;}
+header a { text-decoration:none; color:#222; }
+.flash { padding: 8px; margin: 8px 0; border-radius:4px; }
+.flash-error { background:#ffe6e6; color:#8a0000; }
+.flash-success { background:#e6ffee; color:#004d00; }
+table { width:100%; border-collapse: collapse; margin-top:10px; }
+table, th, td { border:1px solid #ddd; }
+th, td { padding:8px; text-align:left; }
+button { padding:6px 12px; cursor:pointer; }
+form label { display:block; margin:6px 0; }

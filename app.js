@@ -1,149 +1,82 @@
-// app.js
 require('dotenv').config();
 const express = require('express');
-const mongoose = require('mongoose');
-const multer = require('multer');
 const path = require('path');
-const fs = require('fs/promises');
-const Expense = require('./models/Expense');
-const { processReceipt } = require('./utils/ocr');
+const mongoose = require('mongoose');
+const session = require('express-session');
+const MongoStore = require('connect-mongo');
+
+const authRoutes = require('./routes/auth');
+const expenseRoutes = require('./routes/expenses');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
-// Connect Mongo
-mongoose.connect(process.env.MONGO_URI, {
+// DB connect
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/expense_tracker';
+mongoose.connect(MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
-}).then(() => console.log('MongoDB connected'))
-  .catch(err => {
-    console.error('MongoDB connection error:', err.message);
-    process.exit(1);
-  });
+}).then(()=>console.log('MongoDB connected')).catch(err=>{
+  console.error('MongoDB connection error', err);
+  process.exit(1);
+});
 
-// EJS
+// view engine
 app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+
+// middlewares
 app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
-// Multer
-const uploadDir = path.join(__dirname, 'uploads');
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    const ext = path.extname(file.originalname);
-    cb(null, Date.now() + '-' + Math.round(Math.random() * 1E9) + ext);
-  }
-});
-const upload = multer({
-  storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
-  fileFilter: (req, file, cb) => {
-    const allowed = /jpeg|jpg|png|pdf/;
-    const ext = path.extname(file.originalname).toLowerCase();
-    if (allowed.test(ext)) cb(null, true);
-    else cb(new Error('Only images and PDF allowed'));
-  }
+// session
+const sessionStore = MongoStore.create({
+  mongoUrl: MONGODB_URI,
+  collectionName: 'sessions'
 });
 
-// Ensure upload dir exists
-(async () => {
-  try {
-    await fs.mkdir(uploadDir);
-  } catch (e) {
-    // ignore if exists
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'keyboard cat',
+  resave: false,
+  saveUninitialized: false,
+  store: sessionStore,
+  cookie: {
+    maxAge: 1000 * 60 * 60 * 24 * 7,
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    sameSite: 'lax'
   }
-})();
+}));
 
-// Simple category rules
-function detectCategory(vendor, description, rawText) {
-  const map = {
-    Food: ['restaurant', 'cafe', 'pizza', 'burger', 'dominos', 'zomato', 'swiggy', 'mcdonald', 'starbucks', 'kfc', 'hut'],
-    Travel: ['uber', 'ola', 'taxi', 'bus', 'metro', 'flight', 'airlines', 'rail'],
-    Grocery: ['grocery', 'supermarket', 'big bazaar', 'dmart', 'nature', 'reliance fresh', 'reliance', 'groceries'],
-    Shopping: ['amazon', 'flipkart', 'myntra', 'ajio', 'shop', 'store'],
-    Fuel: ['petrol', 'diesel', 'bp', 'bharat petroleum', 'hp', 'io', 'indian oil'],
-    Bills: ['electricity', 'water', 'internet', 'phone', 'broadband', 'bill'],
-    Entertainment: ['movie', 'cinema', 'bookmyshow', 'netflix', 'spotify']
-  };
-
-  const text = (vendor + ' ' + description + ' ' + rawText).toLowerCase();
-
-  for (const [cat, keywords] of Object.entries(map)) {
-    for (const k of keywords) {
-      if (text.includes(k)) return cat;
-    }
-  }
-  return 'Uncategorized';
-}
-
-// Routes
-app.get('/', async (req, res) => {
-  const expenses = await Expense.find().sort({ createdAt: -1 }).limit(200).lean();
-  res.render('index', { expenses, message: null });
+// expose session messages/user to views
+app.use((req, res, next) => {
+  res.locals.user = req.session.user || null;
+  res.locals.error = req.session.error || null;
+  res.locals.success = req.session.success || null;
+  delete req.session.error;
+  delete req.session.success;
+  next();
 });
 
-app.post('/upload', upload.single('receipt'), async (req, res) => {
-  if (!req.file) {
-    const expenses = await Expense.find().sort({ createdAt: -1 }).lean();
-    return res.render('index', { expenses, message: 'No file uploaded' });
-  }
+// routes
+app.use('/', authRoutes);
+app.use('/expenses', expenseRoutes);
 
-  const filePath = req.file.path;
-  try {
-    const parsed = await processReceipt(filePath);
-    const { amount, date, vendor, raw } = parsed;
-
-    // If amount = 0 -> maybe OCR failed; still save as 0 but mark description
-    const detectedDate = date || new Date();
-    const detectedVendor = vendor || 'Unknown';
-    const category = detectCategory(detectedVendor, 'Receipt', raw);
-
-    // Save
-    const expense = await Expense.create({
-      description: 'Auto-imported receipt',
-      vendor: detectedVendor,
-      amount: amount || 0,
-      category,
-      date: detectedDate,
-      paymentMode: 'Unknown',
-      source: 'receipt',
-      rawText: raw
-    });
-
-    // delete uploaded file to keep disk clean
-    try { await fs.unlink(filePath); } catch (e) { /* ignore */ }
-
-    const expenses = await Expense.find().sort({ createdAt: -1 }).lean();
-    res.render('index', { expenses, message: `Saved expense ₹${expense.amount} (${expense.category})` });
-
-  } catch (err) {
-    console.error('Processing error:', err);
-    try { await fs.unlink(filePath); } catch (e) {}
-    const expenses = await Expense.find().sort({ createdAt: -1 }).lean();
-    res.render('index', { expenses, message: 'Error processing receipt: ' + err.message });
-  }
+// root redirect
+app.get('/', (req, res) => {
+  if (req.session.user) return res.redirect('/expenses/dashboard');
+  res.redirect('/login');
 });
 
-// Manual add route (optional)
-app.post('/add', async (req, res) => {
-  try {
-    const { desc, amount, category, date } = req.body;
-    const parsedAmount = parseFloat(amount) || 0;
-    await Expense.create({
-      description: desc || 'Manual',
-      amount: parsedAmount,
-      category: category || 'Uncategorized',
-      date: date ? new Date(date) : new Date(),
-      source: 'manual'
-    });
-    res.redirect('/');
-  } catch (e) {
-    console.error(e);
-    res.redirect('/');
-  }
+// 404
+app.use((req, res) => res.status(404).render('404', { title: 'Not Found' }));
+
+// error handler
+app.use((err, req, res, next) => {
+  console.error('Unhandled error', err);
+  req.session.error = 'Something went wrong. Please try again.';
+  res.redirect('back');
 });
 
-app.listen(PORT, () => console.log(`App running at http://localhost:${PORT}`));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, ()=> console.log(`Server running on port ${PORT}`));

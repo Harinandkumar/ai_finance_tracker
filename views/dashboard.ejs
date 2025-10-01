@@ -1,0 +1,66 @@
+<%- include('partials/header') %>
+<h2>Dashboard</h2>
+
+<section class="add-expense">
+  <h3>Add Expense (manual)</h3>
+  <form action="/expenses/add" method="post">
+    <label>Description <input type="text" name="description"></label><br>
+    <label>Amount <input type="number" step="0.01" name="amount" required></label><br>
+    <label>Category
+      <select name="category">
+        <option>Food</option>
+        <option>Travel</option>
+        <option>Grocery</option>
+        <option>Shopping</option>
+        <option>Fuel</option>
+        <option>Bills</option>
+        <option>Entertainment</option>
+        <option selected>Uncategorized</option>
+      </select>
+    </label><br>
+    <label>Date <input type="date" name="date"></label><br>
+    <label>Vendor <input type="text" name="vendor"></label><br>
+    <button type="submit">Add</button>
+  </form>
+</section>
+
+<section class="upload-receipt">
+  <h3>Upload Receipt (image/pdf) — auto-detect</h3>
+  <form action="/expenses/upload" method="post" enctype="multipart/form-data">
+    <input type="file" name="receipt" accept=".jpeg,.jpg,.png,.pdf" required><br>
+    <small>Allowed: .jpeg, .jpg, .png, .pdf — Max 12MB</small><br>
+    <button type="submit">Upload & Process</button>
+  </form>
+</section>
+
+<section class="expenses-list">
+  <h3>Recent expenses</h3>
+  <% if (!expenses || expenses.length === 0) { %>
+    <p>No expenses yet.</p>
+  <% } else { %>
+    <table>
+      <thead>
+        <tr><th>#</th><th>Description</th><th>Vendor</th><th>Category</th><th>Amount</th><th>Date</th><th>Action</th></tr>
+      </thead>
+      <tbody>
+        <% expenses.forEach(function(exp, idx) { %>
+          <tr>
+            <td><%= idx+1 %></td>
+            <td><%= exp.description %></td>
+            <td><%= exp.vendor || '-' %></td>
+            <td><%= exp.category %></td>
+            <td><%= (exp.amount || 0).toFixed(2) %></td>
+            <td><%= new Date(exp.date).toLocaleDateString() %></td>
+            <td>
+              <form action="/expenses/delete/<%= exp._id %>" method="post" onsubmit="return confirm('Delete this expense?')">
+                <button type="submit">Delete</button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</section>
+
+<%- include('partials/footer') %>
