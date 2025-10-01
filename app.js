@@ -11,9 +11,7 @@ const expenseRoutes = require('./routes/expenses');
 const app = express();
 
 // DB connect
-// DB connect
-const MONGODB_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/expense_tracker';
-
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/expense_tracker';
 mongoose.connect(MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
