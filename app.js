@@ -10,30 +10,28 @@ const expenseRoutes = require('./routes/expenses');
 
 const app = express();
 
-// -------------------- DATABASE --------------------
-// Use MongoDB Atlas if provided in env
+// DB connect
+// DB connect
 const MONGODB_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/expense_tracker';
 
 mongoose.connect(MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
-})
-.then(() => console.log('MongoDB connected'))
-.catch(err => {
+}).then(()=>console.log('MongoDB connected')).catch(err=>{
   console.error('MongoDB connection error', err);
-  process.exit(1); // stop server if DB fails
+  process.exit(1);
 });
 
-// -------------------- VIEW ENGINE --------------------
+// view engine
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// -------------------- MIDDLEWARES --------------------
+// middlewares
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
-// -------------------- SESSION --------------------
+// session
 const sessionStore = MongoStore.create({
   mongoUrl: MONGODB_URI,
   collectionName: 'sessions'
@@ -45,14 +43,14 @@ app.use(session({
   saveUninitialized: false,
   store: sessionStore,
   cookie: {
-    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-    secure: process.env.NODE_ENV === 'production', // HTTPS in production
+    maxAge: 1000 * 60 * 60 * 24 * 7,
+    secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
     sameSite: 'lax'
   }
 }));
 
-// expose session to views
+// expose session messages/user to views
 app.use((req, res, next) => {
   res.locals.user = req.session.user || null;
   res.locals.error = req.session.error || null;
@@ -62,7 +60,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// -------------------- ROUTES --------------------
+// routes
 app.use('/', authRoutes);
 app.use('/expenses', expenseRoutes);
 
@@ -82,6 +80,5 @@ app.use((err, req, res, next) => {
   res.redirect('back');
 });
 
-// -------------------- SERVER --------------------
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, ()=> console.log(`Server running on port ${PORT}`));
